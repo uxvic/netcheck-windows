@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NetCheck</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main id="panel" class="tier-slate">
+      <header>
+        <div id="state">Checking…</div>
+        <div id="sub">Live connection status</div>
+      </header>
+
+      <div id="globe-wrap">
+        <svg id="globe" viewBox="0 0 120 120" width="120" height="120" aria-hidden="true">
+          <circle cx="60" cy="60" r="40" class="rim" />
+          <g class="spin">
+            <ellipse cx="60" cy="60" rx="22" ry="40" />
+            <line x1="60" y1="20" x2="60" y2="100" />
+            <line x1="60" y1="60" x2="60" y2="60" />
+            <line x1="25" y1="40" x2="95" y2="40" />
+            <line x1="20" y1="60" x2="100" y2="60" />
+            <line x1="25" y1="80" x2="95" y2="80" />
+          </g>
+        </svg>
+      </div>
+
+      <div id="metrics">
+        <div class="metric">
+          <span class="label">Latency</span>
+          <span id="latency" class="value">—</span>
+        </div>
+        <div class="metric">
+          <span class="label">Live&nbsp;↓</span>
+          <span id="down" class="value">—</span>
+        </div>
+      </div>
+
+      <div id="usage" hidden>
+        <span class="u-label">Data used</span>
+        <div class="u-seg" role="group">
+          <button type="button" data-period="today" class="active">Today</button>
+          <button type="button" data-period="month">Month</button>
+        </div>
+        <span id="usage-val" class="u-val">—</span>
+      </div>
+
+      <section id="card">
+        <div id="card-state">—</div>
+        <div id="card-detail">Run a speed test to measure your line</div>
+        <button id="speed-btn" type="button">Run speed test</button>
+      </section>
+
+      <footer>
+        <label class="toggle">
+          <input type="checkbox" id="autostart" />
+          <span>Launch at login</span>
+        </label>
+        <a id="repo" href="#">About</a>
+      </footer>
+    </main>
+    <script src="main.js"></script>
+  </body>
+</html>

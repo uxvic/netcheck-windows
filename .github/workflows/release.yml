@@ -1,0 +1,42 @@
+name: release
+
+# Builds the Windows installers on a GitHub-hosted Windows runner.
+# Trigger by pushing a tag like v0.1.0, or run manually from the Actions tab.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write # required: tauri-action creates the Release + uploads assets
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      # No Node / npm step: the frontend is static HTML/JS (beforeBuildCommand is "").
+      # windows-latest already ships the MSVC toolchain and the WebView2 runtime.
+
+      - name: Build + release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "NetCheck ${{ github.ref_name }}"
+          releaseBody: "Windows build. Unsigned — Windows may show a SmartScreen warning; click More info → Run anyway."
+          releaseDraft: true
+          prerelease: false
+          args: --bundles nsis,msi

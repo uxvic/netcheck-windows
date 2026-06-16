@@ -1,0 +1,9 @@
+# Rust / Tauri build output
+/src-tauri/target/
+/src-tauri/gen/schemas/
+
+# OS / editor cruft
+.DS_Store
+*.swp
+.idea/
+.vscode/
