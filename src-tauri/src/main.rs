@@ -103,14 +103,41 @@ fn tray_icon_for(color: &str) -> Image<'static> {
     }
 }
 
-/// Show/hide the flyout, anchored to the tray.
+/// Pin the flyout to the bottom-right of the current monitor, above the taskbar.
+/// Manual placement is far more reliable across DPI / taskbar setups than the
+/// positioner tray anchor, which clipped the window off-screen on some PCs.
+fn position_flyout(win: &tauri::WebviewWindow) {
+    use tauri::PhysicalPosition;
+    let monitor = match win.current_monitor() {
+        Ok(Some(m)) => Some(m),
+        _ => win.primary_monitor().ok().flatten(),
+    };
+    if let (Some(monitor), Ok(w)) = (monitor, win.outer_size()) {
+        let mp = monitor.position();
+        let ms = monitor.size();
+        let margin = 12i32;
+        let taskbar = (48.0 * monitor.scale_factor()).round() as i32;
+        let x = mp.x + ms.width as i32 - w.width as i32 - margin;
+        let y = mp.y + ms.height as i32 - w.height as i32 - taskbar;
+        let _ = win.set_position(PhysicalPosition::new(x.max(mp.x + margin), y.max(mp.y + margin)));
+    }
+}
+
+fn show_flyout(app: &AppHandle) {
+    if let Some(win) = app.get_webview_window("main") {
+        position_flyout(&win);
+        let _ = win.show();
+        let _ = win.set_focus();
+    }
+}
+
+/// Toggle the flyout; place it at the bottom-right corner when showing.
 fn toggle_flyout(app: &AppHandle) {
-    use tauri_plugin_positioner::{Position, WindowExt};
     if let Some(win) = app.get_webview_window("main") {
         if win.is_visible().unwrap_or(false) {
             let _ = win.hide();
         } else {
-            let _ = win.move_window(Position::TrayBottomRight);
+            position_flyout(&win);
             let _ = win.show();
             let _ = win.set_focus();
         }
@@ -258,9 +285,8 @@ fn main() {
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "show" => toggle_flyout(app),
                     "test" => {
+                        show_flyout(app);
                         if let Some(w) = app.get_webview_window("main") {
-                            let _ = w.show();
-                            let _ = w.set_focus();
                             let _ = w.emit("run-speed-test", ());
                         }
                     }
