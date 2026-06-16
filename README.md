@@ -12,6 +12,12 @@ living-globe design are shared; the code is a separate native build — **Tauri 
 (Rust + the system WebView2)**, not a port of the Swift/AppKit app (none of that
 runs on Windows).
 
+## Download
+
+Grab `NetCheck_x.y.z_x64-setup.exe` from the [latest release](https://github.com/uxvic/netcheck-windows/releases/latest) and run it. The installer isn't code-signed yet, so Windows SmartScreen shows *"Windows protected your PC"* — click **More info → Run anyway** (safe; it's just the unsigned-app warning). NetCheck then lives in your **system tray** — click the `^` (show hidden icons) by the clock to find the globe, then click it to open the panel.
+
+**On a Mac?** Get the menu-bar version from **[uxvic/NetCheck](https://github.com/uxvic/NetCheck/releases/latest)** — or `brew tap uxvic/netcheck && brew install --cask netcheck`.
+
 ## What it does (v0.1)
 
 - **Living globe in the tray** — green = alive, amber = slow or a sign-in wall,
@@ -22,11 +28,12 @@ runs on Windows).
 - **Live throughput** — current down/up rate from the OS interface counters;
   drives how fast the globe spins.
 - **On-demand speed test** — a one-shot Cloudflare download.
+- **Accurate data usage** — Today / This month, read straight from Windows' own
+  usage accounting (counts even while NetCheck wasn't running).
 - **Click the tray** for a dark flyout with the globe, the numbers, and a
   status-coloured card. Optional launch-at-login.
 
-Deferred to a later version: data-usage tracking and Sparkle-style auto-update
-(the macOS app has both).
+Deferred to a later version: Sparkle-style auto-update (the macOS app has it).
 
 ## Build
 
