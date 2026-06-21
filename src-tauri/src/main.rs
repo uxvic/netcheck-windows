@@ -145,12 +145,49 @@ fn toggle_flyout(app: &AppHandle) {
 }
 
 /// Background poll: reachability + latency + live throughput, every few seconds.
-/// Updates the tray colour/tooltip and emits a `status` event to the flyout.
+/// Debounces the flip to a bad state (two consecutive failures, like the Mac app) so a
+/// single dropped probe never flashes red, and fires a notification on real transitions.
 async fn monitor_loop(app: AppHandle) {
+    use tauri_plugin_notification::NotificationExt;
     let probe = app.state::<Clients>().inner().probe.clone();
 
+    let mut consecutive_bad = 0u32;
+    let mut displayed: Option<Reachability> = None;
+    let mut prev: Option<Reachability> = None;
+
     loop {
-        let reach = net::check_reachability(&probe).await;
+        let raw = net::check_reachability(&probe).await;
+        match raw {
+            Reachability::Online => {
+                consecutive_bad = 0;
+                displayed = Some(Reachability::Online);
+            }
+            bad => {
+                consecutive_bad += 1;
+                // Accept the first-ever reading immediately (accurate launch state);
+                // afterwards require two consecutive failures before flipping to bad.
+                if displayed.is_none() || consecutive_bad >= 2 {
+                    displayed = Some(bad);
+                }
+            }
+        }
+        let reach = displayed.clone().unwrap_or(Reachability::Online);
+
+        // Notify on a real transition only (the first sample has no prior, so it's silent).
+        if let Some(p) = &prev {
+            if *p != reach {
+                let (title, body) = match &reach {
+                    Reachability::NoInternet => ("Internet dropped", "No real internet right now."),
+                    Reachability::CaptivePortal => {
+                        ("Sign-in needed", "Connected, but a sign-in page is blocking the internet.")
+                    }
+                    Reachability::Online => ("Back online", "Your connection is alive again."),
+                };
+                let _ = app.notification().builder().title(title).body(body).show();
+            }
+        }
+        prev = Some(reach.clone());
+
         let latency = net::measure_latency_ms("1.1.1.1:443").await;
         let tp = net::sample_throughput(Duration::from_millis(1000)).await;
 
@@ -251,6 +288,7 @@ fn main() {
     builder
         .plugin(tauri_plugin_positioner::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             get_current_status,
             run_speed_test,

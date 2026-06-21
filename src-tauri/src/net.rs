@@ -46,35 +46,73 @@ impl Clients {
 
 const PROBE_TIMEOUT: Duration = Duration::from_secs(3);
 
-/// HTTPS probe to Cloudflare's trace endpoint, with a raw-TCP fallback.
-/// - genuine trace body  -> Online
-/// - 3xx redirect / unexpected body -> CaptivePortal (sign-in wall)
-/// - probe errors but TCP-by-IP works -> CaptivePortal (DNS/proxy broken)
+#[derive(PartialEq)]
+enum Probe {
+    Online,
+    Portal,
+    Fail,
+}
+
+/// Reachability via several independent endpoints raced together, so one provider's
+/// hiccup never reads as "offline" on a working link:
+/// - any endpoint returns its genuine success payload -> Online
+/// - else any endpoint is intercepted (redirect / unexpected body) -> CaptivePortal
+/// - all fail but a raw TCP connect to a public IP works -> CaptivePortal (DNS/proxy broken)
 /// - everything fails -> NoInternet
 pub async fn check_reachability(client: &reqwest::Client) -> Reachability {
-    match timeout(
-        PROBE_TIMEOUT,
-        client.get("https://cloudflare.com/cdn-cgi/trace").send(),
-    )
-    .await
-    {
+    let (cf, g204, apple) = tokio::join!(
+        probe_body(client, "https://cloudflare.com/cdn-cgi/trace", &["h=", "ip="]),
+        probe_204(client, "http://www.gstatic.com/generate_204"),
+        probe_body(client, "http://captive.apple.com/hotspot-detect.html", &["Success"]),
+    );
+    let results = [cf, g204, apple];
+    if results.iter().any(|r| *r == Probe::Online) {
+        return Reachability::Online;
+    }
+    if results.iter().any(|r| *r == Probe::Portal) {
+        return Reachability::CaptivePortal;
+    }
+    // All HTTP probes failed: DNS/proxy broken (TCP-by-IP still works) vs. full blackhole.
+    if tcp_probe("1.1.1.1:443").await.is_ok() || tcp_probe("8.8.8.8:443").await.is_ok() {
+        Reachability::CaptivePortal
+    } else {
+        Reachability::NoInternet
+    }
+}
+
+/// Endpoint that returns a known plaintext body when reached directly (Cloudflare
+/// trace, Apple hotspot-detect). A redirect or a body missing the markers = intercepted.
+async fn probe_body(client: &reqwest::Client, url: &str, needles: &[&str]) -> Probe {
+    match timeout(PROBE_TIMEOUT, client.get(url).send()).await {
         Ok(Ok(resp)) => {
             if resp.status().is_redirection() {
-                return Reachability::CaptivePortal;
+                return Probe::Portal;
             }
             match resp.text().await {
-                Ok(body) if body.contains("h=") || body.contains("ip=") => Reachability::Online,
-                Ok(_) => Reachability::CaptivePortal,
-                Err(_) => Reachability::NoInternet,
+                Ok(b) if needles.iter().any(|n| b.contains(n)) => Probe::Online,
+                Ok(_) => Probe::Portal,
+                Err(_) => Probe::Fail,
             }
         }
-        Ok(Err(_)) | Err(_) => {
-            if tcp_probe("1.1.1.1:443").await.is_ok() {
-                Reachability::CaptivePortal
+        _ => Probe::Fail,
+    }
+}
+
+/// A `generate_204` endpoint: exactly 204 when reached directly; a 200-with-login-page
+/// or a redirect means a captive portal intercepted it.
+async fn probe_204(client: &reqwest::Client, url: &str) -> Probe {
+    match timeout(PROBE_TIMEOUT, client.get(url).send()).await {
+        Ok(Ok(resp)) => {
+            let s = resp.status();
+            if s == reqwest::StatusCode::NO_CONTENT {
+                Probe::Online
+            } else if s.is_redirection() || s.is_success() {
+                Probe::Portal
             } else {
-                Reachability::NoInternet
+                Probe::Fail
             }
         }
+        _ => Probe::Fail,
     }
 }
 
@@ -109,7 +147,13 @@ pub async fn sample_throughput(interval: Duration) -> Throughput {
     nets.refresh(true);
 
     let (mut rx, mut tx) = (0u64, 0u64);
-    for (_name, data) in nets.iter() {
+    for (name, data) in nets.iter() {
+        // Count only the physical uplink(s). A VPN's real bytes already traverse the
+        // physical NIC, so adding the tunnel adapter too would double-count; loopback and
+        // virtual switches add idle noise. Both inflate the rate that drives the globe.
+        if !is_physical_uplink(name) {
+            continue;
+        }
         rx += data.received();
         tx += data.transmitted();
     }
@@ -118,6 +162,18 @@ pub async fn sample_throughput(interval: Duration) -> Throughput {
         down_mbps: (rx as f64 * 8.0) / (secs * 1_000_000.0),
         up_mbps: (tx as f64 * 8.0) / (secs * 1_000_000.0),
     }
+}
+
+/// Heuristic: exclude loopback, virtual switches, container bridges, and VPN tunnel
+/// adapters by name, leaving the physical Ethernet/Wi-Fi uplink(s).
+fn is_physical_uplink(name: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    const VIRTUAL: &[&str] = &[
+        "loopback", "pseudo-interface", "isatap", "teredo", "6to4", "vethernet",
+        "vmware", "virtualbox", "vbox", "hyper-v", "wsl", "docker", "tailscale",
+        "wireguard", "zerotier", "openvpn", "ppp adapter", "tunnel",
+    ];
+    !VIRTUAL.iter().any(|v| n.contains(v))
 }
 
 /// One-shot download throughput test against Cloudflare. Uses `Response::chunk()`

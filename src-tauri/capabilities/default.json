@@ -13,6 +13,7 @@
     "positioner:default",
     "opener:default",
     "opener:allow-open-url",
+    "notification:default",
     "autostart:allow-enable",
     "autostart:allow-disable",
     "autostart:allow-is-enabled"
