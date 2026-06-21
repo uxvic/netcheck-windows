@@ -200,6 +200,24 @@ header {
   cursor: default;
 }
 
+#signin-btn {
+  width: 100%;
+  border: none;
+  border-radius: 10px;
+  padding: 9px;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.22);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+#signin-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
 footer {
   width: 100%;
   margin-top: auto;

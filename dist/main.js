@@ -15,6 +15,7 @@ const el = {
   cardState: document.getElementById("card-state"),
   cardDetail: document.getElementById("card-detail"),
   speedBtn: document.getElementById("speed-btn"),
+  signinBtn: document.getElementById("signin-btn"),
   autostart: document.getElementById("autostart"),
   repo: document.getElementById("repo"),
   usage: document.getElementById("usage"),
@@ -86,6 +87,8 @@ function render(p) {
   } else {
     el.cardDetail.textContent = "Run a speed test to measure your line";
   }
+  // Show the one-tap sign-in shortcut only when we're behind a captive portal.
+  el.signinBtn.hidden = p.tier !== "portal";
 }
 
 async function runSpeedTest() {
@@ -115,6 +118,10 @@ async function init() {
   await listen("run-speed-test", runSpeedTest);
 
   el.speedBtn.addEventListener("click", runSpeedTest);
+  // neverssl.com is plain HTTP (no HSTS), so on a captive network it forces the portal.
+  el.signinBtn.addEventListener("click", () =>
+    invoke("open_external", { url: "http://neverssl.com" }).catch(console.error),
+  );
 
   try {
     el.autostart.checked = await invoke("get_autostart");

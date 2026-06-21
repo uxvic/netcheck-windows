@@ -23,6 +23,16 @@ THEMES = {
     "slate": ((140, 160, 180), (50, 62, 78)),   # checking
 }
 
+# Tray icons are keyed by STATE (not just colour) so the shape carries meaning too —
+# a slash for offline, a badge for sign-in — for colour-blind glanceability.
+TRAY_STATES = {
+    "online":   ("green", None),
+    "slow":     ("amber", None),
+    "portal":   ("amber", "badge"),
+    "offline":  ("red", "slash"),
+    "checking": ("slate", None),
+}
+
 
 def _lerp(a, b, t):
     return int(round(a + (b - a) * t))
@@ -68,7 +78,25 @@ def _globe(size, tray=False):
     return layer
 
 
-def render(size, theme, tray=False):
+def _draw_mark(img, size, mark):
+    """Shape cue so status isn't conveyed by colour alone: slash = offline, badge = sign-in."""
+    if not mark:
+        return
+    d = ImageDraw.Draw(img)
+    c = size / 2.0
+    R = size * 0.37
+    if mark == "slash":
+        w = max(2, int(round(size * 0.08)))
+        d.line([c - R, c - R, c + R, c + R], fill=(15, 15, 15, 190), width=w + max(2, int(size * 0.04)))
+        d.line([c - R, c - R, c + R, c + R], fill=(255, 255, 255, 245), width=w)
+    elif mark == "badge":
+        r = size * 0.17
+        bx, by = size * 0.73, size * 0.27
+        d.ellipse([bx - r - 1, by - r - 1, bx + r + 1, by + r + 1], fill=(15, 15, 15, 170))
+        d.ellipse([bx - r, by - r, bx + r, by + r], fill=(255, 255, 255, 245))
+
+
+def render(size, theme, tray=False, mark=None):
     top, bottom = THEMES[theme]
     base = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     base.paste(_gradient(size, top, bottom), (0, 0), _squircle_mask(size))
@@ -82,7 +110,9 @@ def render(size, theme, tray=False):
         base = Image.alpha_composite(base, Image.composite(
             gloss, Image.new("RGBA", (size, size), (0, 0, 0, 0)), _squircle_mask(size)))
 
-    return Image.alpha_composite(base, _globe(size, tray=tray))
+    img = Image.alpha_composite(base, _globe(size, tray=tray))
+    _draw_mark(img, size, mark)
+    return img
 
 
 def main():
@@ -95,9 +125,9 @@ def main():
     render(256, "green").save(
         os.path.join(ICONS, "icon.ico"),
         sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
-    # coloured tray globes (status carried by colour on Windows)
-    for theme in THEMES:
-        render(64, theme, tray=True).save(os.path.join(ICONS, f"tray-{theme}.png"))
+    # state-keyed tray globes (colour + shape: slash = offline, badge = sign-in)
+    for state, (theme, mark) in TRAY_STATES.items():
+        render(64, theme, tray=True, mark=mark).save(os.path.join(ICONS, f"tray-{state}.png"))
     print("wrote icons to", os.path.normpath(ICONS))
     for f in sorted(os.listdir(ICONS)):
         print("  ", f)

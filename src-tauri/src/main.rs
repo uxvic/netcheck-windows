@@ -94,12 +94,15 @@ fn classify(
     }
 }
 
-fn tray_icon_for(color: &str) -> Image<'static> {
-    match color {
-        "red" => tauri::include_image!("icons/tray-red.png"),
-        "amber" => tauri::include_image!("icons/tray-amber.png"),
-        "slate" => tauri::include_image!("icons/tray-slate.png"),
-        _ => tauri::include_image!("icons/tray-green.png"),
+// Keyed by tier so the tray icon's SHAPE carries status too (slash = offline,
+// badge = sign-in), not colour alone — colour-blind-safe glanceability.
+fn tray_icon_for(tier: &str) -> Image<'static> {
+    match tier {
+        "offline" => tauri::include_image!("icons/tray-offline.png"),
+        "portal" => tauri::include_image!("icons/tray-portal.png"),
+        "slow" => tauri::include_image!("icons/tray-slow.png"),
+        "checking" => tauri::include_image!("icons/tray-checking.png"),
+        _ => tauri::include_image!("icons/tray-online.png"), // fast / normal / idle
     }
 }
 
@@ -203,7 +206,7 @@ async fn monitor_loop(app: AppHandle) {
         let payload = classify(reach, latency, tp, recent_test);
 
         if let Some(tray) = app.tray_by_id("main-tray") {
-            let _ = tray.set_icon(Some(tray_icon_for(&payload.color)));
+            let _ = tray.set_icon(Some(tray_icon_for(&payload.tier)));
             let _ = tray.set_tooltip(Some(payload.tooltip()));
         }
 
@@ -316,7 +319,7 @@ fn main() {
                 .build()?;
 
             TrayIconBuilder::with_id("main-tray")
-                .icon(tray_icon_for("slate"))
+                .icon(tray_icon_for("checking"))
                 .tooltip("NetCheck — checking…")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
