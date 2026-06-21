@@ -220,6 +220,24 @@ async fn monitor_loop(app: AppHandle) {
     }
 }
 
+/// On launch, check for a newer signed release; if there is one, download + install it
+/// and relaunch. Silent — a tray utility shouldn't nag. No-op if the updater isn't
+/// configured (e.g. dev builds) or there's nothing new.
+#[cfg(desktop)]
+async fn check_for_updates(app: AppHandle) {
+    use tauri_plugin_updater::UpdaterExt;
+    let Ok(updater) = app.updater() else { return };
+    if let Ok(Some(update)) = updater.check().await {
+        if update
+            .download_and_install(|_received, _total| {}, || {})
+            .await
+            .is_ok()
+        {
+            app.restart();
+        }
+    }
+}
+
 #[tauri::command]
 fn get_current_status(monitor: State<'_, Mutex<Monitor>>) -> StatusPayload {
     monitor.lock().unwrap().latest.clone()
@@ -285,7 +303,8 @@ fn main() {
             .plugin(tauri_plugin_autostart::init(
                 tauri_plugin_autostart::MacosLauncher::LaunchAgent,
                 None::<Vec<&str>>,
-            ));
+            ))
+            .plugin(tauri_plugin_updater::Builder::new().build());
     }
 
     builder
@@ -358,6 +377,8 @@ fn main() {
             }
 
             tauri::async_runtime::spawn(monitor_loop(app.handle().clone()));
+            #[cfg(desktop)]
+            tauri::async_runtime::spawn(check_for_updates(app.handle().clone()));
             Ok(())
         })
         .run(tauri::generate_context!())

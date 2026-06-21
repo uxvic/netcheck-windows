@@ -1,6 +1,6 @@
 [package]
 name = "netcheck"
-version = "0.1.0"
+version = "0.2.0"
 description = "Menu-bar internet reachability and live throughput monitor"
 authors = ["Victor Adedini"]
 edition = "2021"
@@ -27,6 +27,7 @@ sysinfo = { version = "0.39", default-features = false, features = ["network"] }
 [target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
+tauri-plugin-updater = "2"
 
 # Windows-only: read the OS's own persistent data-usage accounting via WinRT.
 [target.'cfg(target_os = "windows")'.dependencies]
